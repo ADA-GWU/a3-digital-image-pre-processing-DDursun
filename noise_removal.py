@@ -1,94 +1,84 @@
 import os
 import random
-import matplotlib.pyplot as plt
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
-# Random image selection
-random_nums = random.sample(range(1, 13), 2)
+def crimmins_short(img, passes=3, threshold=2):
+    out = img.astype(np.int16)
+    directions = [(-1,0), (1,0), (0,-1), (0,1), (-1,-1), (-1,1), (1,-1), (1,1)]
+    for _ in range(passes):
+        current = out.copy()
+        for dr, dc in directions:
+            shifted = np.roll(current, shift=(dr, dc), axis=(0,1))
+            out = np.where(shifted >= (current + threshold), out + 1, out)
+            out = np.where(shifted <= (current - threshold), out - 1, out)
+        out = np.clip(out, 0, 255)
+    return out.astype(np.uint8)
 
-# Read images as grayscale
-img1 = cv2.imread(os.path.join("images", "chemical", f"inchi{random_nums[0]}.png"), cv2.IMREAD_GRAYSCALE)
-img2 = cv2.imread(os.path.join("images", "chemical", f"inchi{random_nums[1]}.png"), cv2.IMREAD_GRAYSCALE)
-
-if img1 is None or img2 is None:
-    print("Error loading images")
+folder_path = "images/speckle"
+all_files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+if len(all_files) < 3:
+    print("Not enough images in the folder.")
 else:
-    def process_image(image):
+    selected_files = random.sample(all_files, 3)
+    for fname in selected_files:
+        img_path = os.path.join(folder_path, fname)
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            print(f"Error loading {fname}")
+            continue
+
+        crimmins_filtered = crimmins_short(img, passes=5, threshold=1)
+        step1 = cv2.medianBlur(img, 3)
+        step2 = cv2.GaussianBlur(step1, (3, 3), 0)
+        step3 = cv2.blur(step2, (3, 3))
+        combined = cv2.medianBlur(step3, 5)
+
+        fig = plt.figure(figsize=(18, 12))
+        # Row 1: 2D images
+        ax1 = fig.add_subplot(2, 3, 1)
+        ax1.imshow(img, cmap='gray')
+        ax1.set_title(f"{fname} - Original", pad=10)
+        ax1.axis("off")
+
+        ax2 = fig.add_subplot(2, 3, 2)
+        ax2.imshow(crimmins_filtered, cmap='gray')
+        ax2.set_title("Crimmins (5 passes)", pad=10)
+        ax2.axis("off")
+
+        ax3 = fig.add_subplot(2, 3, 3)
+        ax3.imshow(combined, cmap='gray')
+        ax3.set_title("Gaussian–Mean Pipeline", pad=10)
+        ax3.axis("off")
+
+        # Row 2: 3D surfaces (downsampled)
+        X, Y = np.meshgrid(np.arange(img.shape[1]), np.arange(img.shape[0]))
+        stride = 5
+        Z_orig = img.astype(float)
+        Z_crim = crimmins_filtered.astype(float)
+        Z_comb = combined.astype(float)
+
+        ax4 = fig.add_subplot(2, 3, 4, projection='3d')
+        ax4.plot_surface(X[::stride, ::stride], Y[::stride, ::stride],
+                         Z_orig[::stride, ::stride], cmap='gray', rstride=1, cstride=1)
         
-        inverted = cv2.bitwise_not(image)
 
-        #1: Closing Only (Dilation + Erosion)
-        kernel = np.ones((2, 2), np.uint8) 
-        dilated = cv2.dilate(inverted, kernel, iterations=1)  
-        closed = cv2.erode(dilated, kernel, iterations=1) 
-        closed_final = cv2.bitwise_not(closed)
-
-        #2: Connected Component Analysis Only
-        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(inverted, connectivity=8)
-        min_area = 2  
-        cleaned = np.zeros_like(inverted)
-        for i in range(1, num_labels):  
-            if stats[i, cv2.CC_STAT_AREA] >= min_area:
-                cleaned[labels == i] = 255
-        cleaned_final = cv2.bitwise_not(cleaned)  
-
-        #3: Both (Closing + Connected Component Analysis)
-
-        kernel = np.ones((2, 2), np.uint8)
-        dilated_both = cv2.dilate(inverted, kernel, iterations=1)
-        closed_both = cv2.erode(dilated_both, kernel, iterations=1)
+        ax5 = fig.add_subplot(2, 3, 5, projection='3d')
+        ax5.plot_surface(X[::stride, ::stride], Y[::stride, ::stride],
+                         Z_crim[::stride, ::stride], cmap='gray', rstride=1, cstride=1)
         
-        num_labels_both, labels_both, stats_both, _ = cv2.connectedComponentsWithStats(closed_both, connectivity=8)
-        cleaned_both = np.zeros_like(closed_both)
-        for i in range(1, num_labels_both):  
-            if stats_both[i, cv2.CC_STAT_AREA] >= min_area:
-                cleaned_both[labels_both == i] = 255
-        both_final = cv2.bitwise_not(cleaned_both)  
 
-        return closed_final, cleaned_final, both_final
+        ax6 = fig.add_subplot(2, 3, 6, projection='3d')
+        ax6.plot_surface(X[::stride, ::stride], Y[::stride, ::stride],
+                         Z_comb[::stride, ::stride], cmap='gray', rstride=1, cstride=1)
+        
 
-    closed1, cleaned1, both1 = process_image(img1)
-    closed2, cleaned2, both2 = process_image(img2)
-
-    # Plotting image 1
-    fig1, axes1 = plt.subplots(1, 4, figsize=(20, 5))
-    axes1[0].imshow(img1, cmap='gray')
-    axes1[0].set_title(f"inchi{random_nums[0]}.png - Original")
-    axes1[0].axis("off")
-
-    axes1[1].imshow(closed1, cmap='gray')
-    axes1[1].set_title("Closing Only")
-    axes1[1].axis("off")
-
-    axes1[2].imshow(cleaned1, cmap='gray')
-    axes1[2].set_title("Connected Component Only")
-    axes1[2].axis("off")
-
-    axes1[3].imshow(both1, cmap='gray')
-    axes1[3].set_title("Closing + Connected Component")
-    axes1[3].axis("off")
-
-    plt.tight_layout()
-    plt.show()
-
-    # Plotting image 2
-    fig2, axes2 = plt.subplots(1, 4, figsize=(20, 5))
-    axes2[0].imshow(img2, cmap='gray')
-    axes2[0].set_title(f"inchi{random_nums[1]}.png - Original")
-    axes2[0].axis("off")
-
-    axes2[1].imshow(closed2, cmap='gray')
-    axes2[1].set_title("Closing Only")
-    axes2[1].axis("off")
-
-    axes2[2].imshow(cleaned2, cmap='gray')
-    axes2[2].set_title("Connected Component Only")
-    axes2[2].axis("off")
-
-    axes2[3].imshow(both2, cmap='gray')
-    axes2[3].set_title("Closing + Connected Component")
-    axes2[3].axis("off")
-
-    plt.tight_layout()
-    plt.show()
+        plt.tight_layout()
+        output_dir = "outputs/speckle_clean"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        save_path = os.path.join(output_dir, f"{os.path.splitext(fname)[0]}_clean.png")
+        plt.savefig(save_path)
+        plt.show()
