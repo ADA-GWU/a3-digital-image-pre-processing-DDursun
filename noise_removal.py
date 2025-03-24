@@ -33,8 +33,8 @@ else:
                 cleaned[labels == i] = 255
         cleaned_final = cv2.bitwise_not(cleaned)  
 
-        #3: Both (Closing + Connected Component Analysis)
-
+        #3: Both
+        
         kernel = np.ones((2, 2), np.uint8)
         dilated_both = cv2.dilate(inverted, kernel, iterations=1)
         closed_both = cv2.erode(dilated_both, kernel, iterations=1)
