@@ -1,5 +1,5 @@
 # Image pre-processing
- 
+
 ## Contents
 * [About the assignment](#about-the-repository)
 * [Prerequisites](#prerequisites)
@@ -10,20 +10,23 @@
 
 
 ## About the repository
-This repository contains three scripts, namely,  x and y. 
+This repository is applies different image preprocessing techniques to various images collected under *images* folder. The script is written in 3 parts (namely, *noise_removal.py*, *speckle_removal.py* and *mri.py*) for better readability and share utils.py file for some functions.  
 
 ## Notes & Observations on tasks
-Task 1:
+Task 1 - Removing the noise:
 - Smaller kernel size is better when the pixels are close but they should not be connected (letters).
 - Connected Component presents great advantage to remove noise which is far from the structure.
 - When used together with Closing, the details are even sharper. 
 
-Task 2:
-Crimming performs usually better than standard filtering because it adaptively adjusts each pixel based on its local neighborhood, effectively reducing noise while preserving details and edges that uniform smoothing seem to erase.
+![Analysis Result](outputs/noise_clean/img5-analyzed.png)
 
 
-Task 3:
+Task 2 - Speckle removal with filter and Crimmins
+Crimmins performs usually better than standard filtering because it adaptively adjusts each pixel based on its local neighborhood, effectively reducing noise while preserving details and edges that uniform smoothing seem to erase.
 
+
+Task 3 - DICOM visualization
+The script pulls the file from Google Drive, visualizes the 76 frames in one window and gives the user capability to save selected images to the folder. The user can also use button to *sharpen* the image before downloading. All selected files are saved under \outputs\dicom.
 
 
 
